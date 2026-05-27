@@ -1,122 +1,128 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import React, { useState } from "react";
+import { searchTracks, getNextTrack } from "./services/api";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [playlist, setPlaylist] = useState([]);
+  const [preferences, setPreferences] = useState({
+    energy: 0.5,
+    valence: 0.5,
+  });
+  const [loading, setLoading] = useState(false);
 
+  // search
+  const search = async () => {
+    const data = await searchTracks(query);
+    setResults(data);
+  };
+
+  // recommendation engine
+  const fetchNext = async (updated) => {
+    if (updated.length < 1) return;
+
+    setLoading(true);
+
+    const seedIds = updated.slice(-5).map((t) => t.id);
+    const data = await getNextTrack(seedIds, preferences);
+
+    if (data?.nextTrack) {
+      setPlaylist((prev) => [
+        ...prev,
+        {
+          id: data.nextTrack.id,
+          name: data.nextTrack.name,
+          artist: data.nextTrack.artist,
+          preview: data.nextTrack.preview,
+        },
+      ]);
+    }
+
+    setLoading(false);
+  };
+
+  // add track 
+  const addTrack = (track) => {
+    if (!track?.id) return;
+
+    if (playlist.find((t) => t.id === track.id)) return;
+
+    const updated = [...playlist, track];
+    setPlaylist(updated);
+
+    if (updated.length >= 1) {
+      fetchNext(updated);
+    }
+  };
+
+  
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div style={{ padding: 20 }}>
+      <h1>NextTrack 🎵</h1>
 
-      <div className="ticks"></div>
+      {/* SEARCH */}
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search songs..."
+      />
+      <button onClick={search}>Search</button>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      {/* RESULTS */}
+      <ul>
+        {results.map((t) => (
+          <li key={t.id}>
+            {t.name} - {t.artist}
+            <button onClick={() => addTrack(t)}>Add</button>
+            {t.preview && <audio controls src={t.preview} />}
+          </li>
+        ))}
+      </ul>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      {/* PREFERENCES */}
+      <h3>Energy</h3>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.1"
+        value={preferences.energy}
+        onChange={(e) =>
+          setPreferences({ ...preferences, energy: +e.target.value })
+        }
+      />
+
+      <h3>Valence</h3>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.1"
+        value={preferences.valence}
+        onChange={(e) =>
+          setPreferences({ ...preferences, valence: +e.target.value })
+        }
+      />
+
+      {/* PLAYLIST */}
+      <h2>Playlist</h2>
+
+      {playlist.length === 0 ? (
+        <p>Search and pick a song to begin</p>
+      ) : (
+        <>
+          {loading && <p>Generating next track...</p>}
+
+          {playlist.map((t, i) => (
+            <div key={i}>
+              {i + 1}. {t.name} - {t.artist}
+              {t.preview && <audio controls src={t.preview} />}
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
 }
 
-export default App
+export default App;
