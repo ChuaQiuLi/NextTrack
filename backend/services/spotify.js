@@ -2,7 +2,6 @@ const axios = require("axios");
 
 let accessToken = null;
 
-/* ---------------- AUTH ---------------- */
 
 async function getAccessToken() {
   const res = await axios.post(
@@ -29,7 +28,6 @@ async function ensureToken() {
   if (!accessToken) await getAccessToken();
 }
 
-/* ---------------- SEARCH ONLY ---------------- */
 
 async function searchTracks(query) {
   await ensureToken();
@@ -48,10 +46,16 @@ async function searchTracks(query) {
   return res.data.tracks.items.map((t) => ({
     id: t.id,
     name: t.name,
-    artist: t.artists[0]?.name,
+    artist: t.artists.map((a) => a.name).join(", "),
     preview: t.preview_url,
+    duration_ms: t.duration_ms,
+    image: t.album?.images?.[0]?.url || null,
+    album: t.album?.name || null,
   }));
+
 }
+
+
 
 module.exports = {
   searchTracks,

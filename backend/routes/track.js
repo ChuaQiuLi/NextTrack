@@ -4,7 +4,7 @@ const router = express.Router();
 const { searchTracks } = require("../services/spotify");
 const { pickBestTrack } = require("../services/recommend");
 
-/* ---------------- SEARCH ---------------- */
+
 
 router.get("/search", async (req, res) => {
   try {
@@ -16,21 +16,16 @@ router.get("/search", async (req, res) => {
 
     const tracks = await searchTracks(query);
 
-    const results = tracks.map((t) => ({
-      id: t.id,
-      name: t.name,
-      artist: t.artist,
-      preview: t.preview,
-    }));
-
-    res.json(results);
-  } catch (err) {
+    res.json(tracks);
+  } 
+  
+  catch (err) {
     console.error(err);
     res.status(500).json({ error: "Search failed" });
   }
 });
 
-/* ---------------- NEXT TRACK ---------------- */
+
 
 router.post("/next-track", async (req, res) => {
   try {
