@@ -53,7 +53,7 @@
 
 .mainGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 24px;
 }
 
@@ -75,7 +75,7 @@
 }
 
 .loadingText {
-  color: #1db954;
+  color: #ffffff;
   margin-bottom: 12px;
 }
 

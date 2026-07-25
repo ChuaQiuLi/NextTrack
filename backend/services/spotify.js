@@ -1,7 +1,23 @@
 const axios = require("axios");
 
 let accessToken = null;
+let tokenExpiry = 0;
 
+function mapTrack(t) {
+  return {
+    id: t.id,
+    name: t.name,
+    artist: t.artists?.map((a) => a.name).join(", ") || "",
+    artistNames: t.artists?.map((a) => a.name) || [],
+    artistIds: t.artists?.map((a) => a.id) || [],
+    album: t.album?.name || null,
+    albumId: t.album?.id || null,
+    preview: t.preview_url,
+    duration_ms: t.duration_ms,
+    image: t.album?.images?.[0]?.url || null,
+    popularity: t.popularity ?? 0,
+  };
+}
 
 async function getAccessToken() {
   const res = await axios.post(
@@ -22,14 +38,17 @@ async function getAccessToken() {
   );
 
   accessToken = res.data.access_token;
+  // token usually expires in 3600s
+  tokenExpiry = Date.now() + (res.data.expires_in - 60) * 1000;
 }
 
 async function ensureToken() {
-  if (!accessToken) await getAccessToken();
+  if (!accessToken || Date.now() >= tokenExpiry) {
+    await getAccessToken();
+  }
 }
 
-
-async function searchTracks(query) {
+async function searchTracks(query, limit = 10) {
   await ensureToken();
 
   const res = await axios.get("https://api.spotify.com/v1/search", {
@@ -39,26 +58,23 @@ async function searchTracks(query) {
     params: {
       q: query,
       type: "track",
-      limit: 10,
+      limit,
     },
   });
 
-  return res.data.tracks.items.map((t) => ({
-    id: t.id,
-    name: t.name,
-    artist: t.artists.map((a) => a.name).join(", "),
-    preview: t.preview_url,
-    duration_ms: t.duration_ms,
-    image: t.album?.images?.[0]?.url || null,
-    album: t.album?.name || null,
-  }));
-
+  return res.data.tracks.items.map(mapTrack);
 }
 
+async function getTrackById(id) {
+  await ensureToken();
 
+  const res = await axios.get(`https://api.spotify.com/v1/tracks/${id}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
 
-module.exports = {
-  searchTracks,
-  ensureToken,
-  getAccessToken,
-};
+  return mapTrack(res.data);
+}
+
+module.exports = { searchTracks, getTrackById, ensureToken, getAccessToken };

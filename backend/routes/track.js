@@ -1,8 +1,9 @@
 const express = require("express");
 const router = express.Router();
 
-const { searchTracks } = require("../services/spotify");
-const { pickBestTrack } = require("../services/recommend");
+const { searchTracks, getTrackById } = require("../services/spotify");
+const { rankTracks, metadataScore } = require("../services/recommend");
+const { getTrackAnalysis } = require("../services/analysis");
 
 
 
@@ -15,7 +16,6 @@ router.get("/search", async (req, res) => {
     }
 
     const tracks = await searchTracks(query);
-
     res.json(tracks);
   } 
   
@@ -23,7 +23,9 @@ router.get("/search", async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "Search failed" });
   }
+
 });
+
 
 
 
@@ -31,53 +33,221 @@ router.post("/next-track", async (req, res) => {
   try {
     const { trackIds } = req.body;
 
-    const seeds = (trackIds || []).filter(Boolean).slice(-5);
+    const playlistIds = (trackIds || []).filter(Boolean);
 
-    if (!seeds.length) {
-      return res.status(400).json({ error: "At least 1 seed required" });
+    if (!playlistIds.length) {
+      return res.status(400).json({ error: "At least 1 track required" });
     }
 
-    // fetch seed tracks
-    const seedTracks = await Promise.all(
-      seeds.map(async (q) => {
-        const r = await searchTracks(q);
-        return r?.[0];
-      })
-    );
+    // fetch ALL playlist tracks
+    const playlistTracks = [];
 
-    // build candidate pool
+
+    for (const id of playlistIds) {
+
+      try {
+
+        const track = await getTrackById(id);
+        track.analysis = await getTrackAnalysis(track.id);
+        playlistTracks.push(track);
+
+      } 
+      
+      catch (err) {
+        console.error( "Skipping playlist track", id, err.response?.data || err.message );
+
+      }
+
+    }
+
+    // build candidate pool from EVERY playlist track
     let pool = [];
 
-    for (let seed of seedTracks) {
-      const keyword = seed.name.split(" ")[0];
-      const results = await searchTracks(keyword);
-      pool.push(...results);
+    for (const seed of playlistTracks) {
+      if (!seed) continue;
+
+      if (!seed.artistNames?.length) continue;
+
+      for (const artist of seed.artistNames) {
+        // Search by artist and track
+        const [byArtist, byArtistTrack] = await Promise.all([
+          searchTracks(`artist:${artist}`, 8),
+          searchTracks(`artist:${artist} track:${seed.name}`, 8 )
+
+        ]);
+
+        pool.push(...byArtist);
+        pool.push(...byArtistTrack);
+
+      }
+
+
     }
 
-    // remove duplicates + seeds
-    const unique = Array.from(
-      new Map(pool.map((t) => [t.id, t])).values()
-    ).filter((t) => !seeds.includes(t.id));
+    // remove duplicates
+    const uniquePool = Array.from(new Map(pool.map((track) => [track.id, track])).values());
 
-    if (!unique.length) {
+    // remove songs already in playlist
+    const filteredPool = uniquePool.filter(track => !playlistIds.includes(track.id)).map(track => ({
+      ...track,
+      metadataScore: metadataScore(track, playlistTracks)
+    }))
+    .sort((a, b) => b.metadataScore - a.metadataScore);
+
+
+    if (!filteredPool.length) {
       return res.status(404).json({ error: "No candidates found" });
     }
 
-    // PICK BEST TRACK 
-    const next = pickBestTrack(unique, seedTracks);
+    // Reduce candidate pool
+    const candidatePool = filteredPool.slice(0,10);
 
-    return res.json({
-      nextTrack: {
-        id: next.id,
-        name: next.name,
-        artist: next.artist,
-        preview: next.preview,
-      },
-    });
-  } catch (err) {
-    console.error("Next-track error:", err);
+    const analysedPool = [];
+
+    for(const track of candidatePool) {
+
+      try {
+
+        track.analysis = await getTrackAnalysis(track.id);
+        analysedPool.push(track);
+
+      }
+
+      catch(err) {
+        console.log("Skipping",track.name);
+
+      }
+
+    }
+
+    
+    if (!analysedPool.length) {
+      return res.status(404).json({ error: "Unable to analyse candidate tracks." });
+    }
+
+
+    // pick best candidate based on current playlist tracks
+    const recommendations = rankTracks(analysedPool, playlistTracks);
+
+    if (!recommendations.length) {
+      return res.status(404).json({ error: "No next track found" });
+    }
+
+    return res.json({ recommendations: recommendations.slice(0, 5) });
+        
+  } 
+  
+  catch (err) {
+    console.error("Next-track error:", err.response?.data || err.message || err);
     res.status(500).json({ error: "Failed to generate next track" });
   }
+
 });
 
 module.exports = router;
+
+
+
+// const express = require("express");
+// const router = express.Router();
+
+// const { searchTracks, getTrackById } = require("../services/spotify");
+// const { pickBestTrack } = require("../services/recommend");
+
+
+
+// router.get("/search", async (req, res) => {
+//   try {
+//     const query = req.query.q;
+
+//     if (!query) {
+//       return res.status(400).json({ error: "Query is required" });
+//     }
+
+//     const tracks = await searchTracks(query);
+//     res.json(tracks);
+//   } 
+  
+//   catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: "Search failed" });
+//   }
+
+// });
+
+
+
+
+// router.post("/next-track", async (req, res) => {
+//   try {
+//     const { trackIds } = req.body;
+
+//     const playlistIds = (trackIds || []).filter(Boolean);
+
+//     if (!playlistIds.length) {
+//       return res.status(400).json({ error: "At least 1 track required" });
+//     }
+
+//     // 1) fetch ALL playlist tracks
+//     const playlistTracks = await Promise.all(
+//       playlistIds.map((id) => getTrackById(id))
+//     );
+
+//     // 2) build candidate pool from EVERY playlist track
+//     let pool = [];
+
+//     for (const seed of playlistTracks) {
+//       if (!seed) continue;
+
+//       // search by artist
+//       if (seed.artistNames?.length) {
+//         for (const artistName of seed.artistNames) {
+//           const byArtist = await searchTracks(`artist:${artistName}`, 8);
+//           pool.push(...byArtist);
+//         }
+//       }
+      
+//       // search by track name
+//       if (seed.name) {
+//         const byTrackName = await searchTracks(`track:${seed.name}`, 8);
+//         pool.push(...byTrackName);
+//       }
+
+//       // search by artist and track together
+//       if (seed.artist && seed.name) {
+//         const byArtistTrack = await searchTracks(
+//           `artist:${seed.artist} track:${seed.name}`,
+//           8
+//         );
+//         pool.push(...byArtistTrack);
+//       }
+//     }
+
+//     // remove duplicates
+//     const uniquePool = Array.from(new Map(pool.map((track) => [track.id, track])).values());
+
+//     // remove songs already in playlist
+//     const filteredPool = uniquePool.filter((track) => !playlistIds.includes(track.id));
+
+//     if (!filteredPool.length) {
+//       return res.status(404).json({ error: "No candidates found" });
+//     }
+
+//     // pick best candidate based on current playlist tracks
+//     const next = pickBestTrack(filteredPool, playlistTracks);
+
+//     if (!next) {
+//       return res.status(404).json({ error: "No next track found" });
+//     }
+
+//     return res.json({ nextTrack: next });
+//   } 
+  
+//   catch (err) {
+//     console.error("Next-track error:", err.response?.data || err.message || err);
+//     res.status(500).json({ error: "Failed to generate next track" });
+//   }
+
+// });
+
+// module.exports = router;
