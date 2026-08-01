@@ -40,6 +40,7 @@ function App() {
     }
 
     setLoading(true);
+    setRecommendations([]); 
 
     try {
       const data = await getNextTrack(updated);
