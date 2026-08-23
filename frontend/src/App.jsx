@@ -9,6 +9,7 @@ function App() {
   const [playlist, setPlaylist] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   // convert Spotify duration_ms to mm:ss
   const formatDuration = (ms) => {
@@ -41,6 +42,7 @@ function App() {
 
     setLoading(true);
     setRecommendations([]); 
+    setError("");
 
     try {
       const data = await getNextTrack(updated);
@@ -57,6 +59,7 @@ function App() {
     catch (err) {
       console.error("Next track fetch failed:", err);
       setRecommendations([]);
+      setError("Unable to generate recommendations. Please try again.");
     } 
     
     finally {
@@ -90,14 +93,6 @@ function App() {
 
     setRecommendations([]);
 
-    // if (updated.length > 0) {
-    //   fetchNext(updated);
-    // } 
-    
-    // else {
-    //   setRecommendations([]);
-    // }
-
   };
 
 
@@ -124,7 +119,7 @@ function App() {
             <h2 className = "sectionTitle">Search Results</h2>
 
             {results.length === 0 ? (
-              <p className = "emptyText">No search results yet.</p>
+              <p className = "emptyText">No tracks found. Try another search.</p>
             ) : (
               <ol className = "trackList">
                 {results.map((track) => (
@@ -223,8 +218,11 @@ function App() {
           {loading ? (
             <p>Finding recommendations tracks for you...</p>
 
+          ) : error ? (
+            <p className="errorText">{error}</p>
+
           ) : recommendations.length === 0 ? (
-            <p>No recommendations.</p>
+            <p>No suitable recommendations found. Try adding different tracks to your playlist.</p>
 
           ) : (
           
