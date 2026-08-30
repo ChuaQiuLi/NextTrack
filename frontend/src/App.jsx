@@ -10,6 +10,7 @@ function App() {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [toast, setToast] = useState("");
 
   // convert Spotify duration_ms to mm:ss
   const formatDuration = (ms) => {
@@ -31,6 +32,15 @@ function App() {
       console.error("Search failed:", err);
       setResults([]);
     }
+  };
+
+  const showToast = (message) => {
+    setToast(message);
+
+    setTimeout(() => {
+      setToast("");
+    }, 3000);
+
   };
 
   // recommendation 
@@ -75,11 +85,19 @@ function App() {
 
     const exists = playlist.some(t => t.id === track.id);
 
-    if (exists) return;
+    if (exists) {
+
+      showToast("This track is already in your playlist.");
+
+      return;
+
+    }
 
     const updated = [...playlist, track];
 
     setPlaylist(updated);
+
+    showToast("Track added to your playlist successfully.");
 
     // fetchNext(updated);
 
@@ -92,6 +110,8 @@ function App() {
     setPlaylist(updated);
 
     setRecommendations([]);
+
+    showToast("Track removed from your playlist.");
 
   };
 
@@ -281,6 +301,9 @@ function App() {
         </div>
         </div>
       </div>
+
+      {toast && (<div className="toast"> {toast} </div> )}
+
     </div>
   );
 }
