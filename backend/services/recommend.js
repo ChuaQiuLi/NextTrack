@@ -13,7 +13,7 @@ function buildPlaylistProfile(playlist) {
     happiness: 0,
     tempo: 0,
     acousticness: 0,
-    speechiness: 0
+    speechiness: 0,
   };
 
   playlist.forEach(track => {
@@ -41,30 +41,36 @@ function buildPlaylistProfile(playlist) {
 }
 
 function metadataScore(candidate, playlist) {
-
+  
   let score = 0;
 
   for (const seed of playlist) {
 
     // Same artist
-    if (candidate.artist === seed.artist) {
-      score += 30;
+    const sameArtist = candidate.artistIds?.some(
+      id => seed.artistIds?.includes(id)
+    );
+
+    if (sameArtist) {
+      score += 20;
     }
+
 
     // Same album
-    if (candidate.album === seed.album) {
-      score += 10;
+    if (candidate.albumId && seed.albumId && candidate.albumId === seed.albumId ) {
+      score += 5;
     }
 
+
     // Similar duration (within 15 seconds)
-    if (Math.abs(candidate.duration_ms - seed.duration_ms) <= 15000) {
+    if (candidate.duration_ms && seed.duration_ms && Math.abs(candidate.duration_ms - seed.duration_ms) <= 15000 ) {
       score += 10;
     }
 
   }
 
-  // Popular songs receive a small bonus
-  score += candidate.popularity * 0.2;
+  // Small popularity bonus
+  score += candidate.popularity * 0.1;
 
   return score;
 
@@ -99,25 +105,62 @@ function weightedEuclidean(candidate, profile) {
 
 }
 
+
+function calculateArtistPenalty(candidate, playlist) {
+
+  const candidateArtistIds = candidate.artistIds || [];
+
+  let artistCount = 0;
+
+  for (const track of playlist) {
+
+    const sameArtist = candidateArtistIds.some(
+      id => track.artistIds?.includes(id)
+    );
+
+    if (sameArtist) {
+      artistCount++;
+    }
+  }
+
+  // No penalty if artist has not appeared in playlist
+  if (artistCount === 0) {
+    return 0;
+  }
+
+  // Small penalty for repeated artists
+  return Math.min(artistCount * 0.03, 0.15);
+}
+
+
+
 function rankTracks(candidates, playlist) {
 
   const profile = buildPlaylistProfile(playlist);
+
+  const maxMetadataScore = Math.max(
+    ...candidates.map(candidate => candidate.metadataScore), 1 );
 
   return candidates
     .map(candidate => {
 
       const distance = weightedEuclidean(candidate, profile);
 
-      const similarityScore = candidate.metadataScore * 0.4 + (1 / (1 + distance)) * 0.6;
+      const metadataSimilarity = candidate.metadataScore / maxMetadataScore;
 
-      return { ...candidate, distance, similarityScore };
+      const audioSimilarity = 1 / (1 + distance);
+
+      const artistPenalty = calculateArtistPenalty(candidate, playlist);
+
+      const similarityScore = metadataSimilarity * 0.4 + audioSimilarity * 0.6 - artistPenalty;
+
+      return {...candidate, distance, metadataSimilarity, audioSimilarity, artistPenalty, similarityScore }; 
 
     })
-    
+
     .sort((a, b) => b.similarityScore - a.similarityScore);
 
 }
 
-
-module.exports = { buildPlaylistProfile, weightedEuclidean, rankTracks, metadataScore };
+module.exports = { buildPlaylistProfile, weightedEuclidean, rankTracks, metadataScore, calculateArtistPenalty };
 

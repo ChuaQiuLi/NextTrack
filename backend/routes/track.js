@@ -68,19 +68,27 @@ router.post("/next-track", async (req, res) => {
 
       if (!seed.artistNames?.length) continue;
 
-      for (const artist of seed.artistNames) {
-        // Search by artist and track
-        const [byArtist, byArtistTrack] = await Promise.all([
-          searchTracks(`artist:${artist}`, 8),
-          searchTracks(`artist:${artist} track:${seed.name}`, 8 )
+      for (const seed of playlistTracks) {
+        if (!seed) continue;
+        if (!seed.artistNames?.length) continue;
 
+        // Search by track name once
+        const [byTrack, broadSearch] = await Promise.all([
+          searchTracks(`track:${seed.name}`, 8),
+          searchTracks(seed.name, 8)
         ]);
 
-        pool.push(...byArtist);
-        pool.push(...byArtistTrack);
+        pool.push(...byTrack);
+        pool.push(...broadSearch);
+        
+        
+        // Search by each artist
+        for (const artist of seed.artistNames) {
+          const byArtist = await searchTracks(`artist:${artist}`, 8);
+          pool.push(...byArtist);
+        }
 
       }
-
 
     }
 
