@@ -25,3 +25,4 @@ function get(key) {
 }
 
 module.exports = { get, set };
+

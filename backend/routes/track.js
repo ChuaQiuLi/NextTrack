@@ -57,20 +57,29 @@ router.post("/next-track", async (req, res) => {
 
 
     for (const id of playlistIds) {
-
       try {
-
         const track = await getTrackById(id);
         track.analysis = await getTrackAnalysis(track.id);
         playlistTracks.push(track);
-
-      } 
-      
-      catch (err) {
-        console.error( "Skipping playlist track", id, err.response?.data || err.message );
-
       }
 
+      catch (err) {
+        if (err.code === "ECONNABORTED") {
+          console.log("Skipping playlist track", id, "- RapidAPI request timed out" );
+        } 
+        
+        else if (err.response?.data?.message?.includes("DAILY quota")) {
+          console.log(
+            "RapidAPI daily quota exceeded. Stopping analysis requests."
+          );
+
+          break;
+        } 
+        
+        else {
+          console.log("Skipping playlist track", id, err.response?.data || err.message );
+        }
+      }
     }
 
 
