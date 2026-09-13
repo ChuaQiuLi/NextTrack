@@ -1,26 +1,27 @@
 const cache = new Map();
 
-function set(key,data){
+const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 
-  cache.set(key, {data, expiry:Date.now()+600000});
-
+function set(key, data) {
+  cache.set(key, {
+    data,
+    expiry: Date.now() + CACHE_DURATION
+  });
 }
 
-function get(key){
+function get(key) {
+  const item = cache.get(key);
 
-  const item=cache.get(key);
+  if (!item) {
+    return null;
+  }
 
-  if(!item) return null;
-
-  if(Date.now()>item.expiry) {
-
+  if (Date.now() > item.expiry) {
     cache.delete(key);
     return null;
-
   }
 
   return item.data;
-
 }
 
 module.exports = { get, set };
