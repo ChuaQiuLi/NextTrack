@@ -11,6 +11,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
+  const [lastRecommendedPlaylist, setLastRecommendedPlaylist] = useState("");
 
   // convert Spotify duration_ms to mm:ss
   const formatDuration = (ms) => {
@@ -50,8 +51,19 @@ function App() {
       return;
     }
 
+    const playlistKey = updated
+      .map(track => track.id)
+      .sort()
+      .join(",");
+
+    // Avoid requesting recommendations for the exact same playlist
+    if (playlistKey === lastRecommendedPlaylist) {
+      showToast("Recommendations are already up to date.");
+      return;
+    }
+
     setLoading(true);
-    setRecommendations([]); 
+    setRecommendations([]);
     setError("");
 
     try {
@@ -59,6 +71,7 @@ function App() {
 
       if (data && data.recommendations) {
         setRecommendations(data.recommendations);
+        setLastRecommendedPlaylist(playlistKey);
       } 
       
       else {
@@ -66,12 +79,13 @@ function App() {
       }
 
     } 
+    
     catch (err) {
       console.error("Next track fetch failed:", err);
       setRecommendations([]);
       setError("Unable to generate recommendations. Please try again.");
-    } 
-    
+    }
+
     finally {
       setLoading(false);
     }
@@ -86,21 +100,17 @@ function App() {
     const exists = playlist.some(t => t.id === track.id);
 
     if (exists) {
-
       showToast("This track is already in your playlist.");
-
       return;
-
     }
 
     const updated = [...playlist, track];
 
     setPlaylist(updated);
+    setLastRecommendedPlaylist("");
 
     showToast("Track added to your playlist successfully.");
-
-    // fetchNext(updated);
-
+    
   };
 
 
@@ -108,11 +118,11 @@ function App() {
     const updated = playlist.filter(track => track.id !== trackId);
 
     setPlaylist(updated);
-
     setRecommendations([]);
+    setLastRecommendedPlaylist("");
 
     showToast("Track removed from your playlist.");
-
+    
   };
 
 
